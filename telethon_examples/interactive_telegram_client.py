@@ -330,6 +330,53 @@ class InteractiveTelegramClient(TelegramClient):
             bytes_to_string(total_bytes), downloaded_bytes / total_bytes)
         )
 
+    def holding_message(self):
+        while True:
+            dialog_msg_map = {}
+            dialogs = self.get_dialogs(limit=20)
+            for i, dialog in enumerate(dialogs, start=1):
+                dialog_name =  get_display_name(dialog.entity)
+                sprint('{}. {}'.format(i, dialog_name))
+                # First retrieve the messages and some information
+                messages = self.get_message_history(dialog.entity, limit=500)
+
+                # Iterate over all (in reverse order so the latest appear
+                # the last in the console) and print them with format:
+                # "[hh:mm] Sender: Message"
+                for msg in reversed(messages):
+                    # Note that the .sender attribute is only there for
+                    # convenience, the API returns it differently. But
+                    # this shouldn't concern us. See the documentation
+                    # for .get_message_history() for more information.
+                    if dialog_name in dialog_msg_map and dialog_msg_map[dialog_name] > msg.id:
+                        continue
+                    dialog_msg_map[dialog_name] = msg.id
+                    name = get_display_name(msg.sender)
+
+                    # Format the message content
+                    if getattr(msg, 'media', None):
+                        self.found_media[msg.id] = msg
+                        # The media may or may not have a caption
+                        caption = getattr(msg.media, 'caption', '')
+                        content = '<{}> {}'.format(
+                            type(msg.media).__name__, caption)
+                        self.download_media_by_id(msg.id)
+
+                    elif hasattr(msg, 'message'):
+                        content = msg.message
+                    elif hasattr(msg, 'action'):
+                        content = str(msg.action)
+                    else:
+                        # Unknown message, simply print its class name
+                        content = type(msg).__name__
+
+                    # And print it to the user
+                    sprint('[{}:{}] (ID={}) {}: {}'.format(
+                           msg.date.hour, msg.date.minute, msg.id, name,
+                           content)) 
+            print('end')
+
+
     def update_handler(self, update):
         """Callback method for received Updates"""
 
